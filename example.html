@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<meta charset=utf-8>
+<title>custom-element-events example</title>
+<style>
+my-example {
+	display: block;
+	margin: 1em 0;
+	padding: .5em;
+	background: #abcdef;
+}
+
+.actions button {
+	display: block;
+	font-weight: bold;
+}
+
+.actions button::after {
+	white-space: pre-wrap;
+	margin-left: 1em;
+	font-weight: normal;
+	content: attr(onclick);
+	white-space: wrap;
+	opacity: 0.5;
+	font-family: monospace;
+	font-size; 1rem;
+	display: inline-block;
+	text-align: left;
+}
+
+.actions .fire {
+	font-size: 5em;
+}
+
+.actions .fire::after {
+	font-size: .2em;
+	display: block;
+}
+
+.actions div {
+	margin-top: 1rem;
+	margin-bottom: 1rem;
+}
+
+#log div {
+	animation: 2s enter;
+	line-height: 1;
+	background: #fff;
+	transition: .2s opacity;
+}
+
+#log :not(.latest) {
+	opacity: .5;
+}
+
+#log div.one {
+	background: #efe;
+}
+
+#log div.two {
+	background: #eef;
+}
+
+@keyframes enter {
+	from { background: #ffa; line-height: 0; }
+	10% { line-height: 1; }
+}
+</style>
+
+<h1>custom-element-events</h1>
+
+<h2>Explanation</h2>
+
+<p>Given a custom element type <code>MyExampleElement</code> which you want to dispatch event type <code>sample</code> on, write this:
+
+<pre><code>defineEventAttributes(MyExampleElement, ['sample']);</code></pre>
+
+<p><i>Et voilà!</i> <code>MyExampleElement</code> now supports the <code>onsample</code> HTML attribute and has an <code>onsample</code> property on its prototype.
+
+<p>If you’re using the old Custom Events style where you only define a prototype and pass it like <code>MyExampleElement = document.registerElement('my-example', {prototype: MyExampleElementPrototype})</code>, then pass <code>{prototype: MyExampleElementPrototype}</code> to <code>defineEventAttributes</code> as well; it’ll work.
+
+<p>Note that I have not attempted to make this any more general; it only applies to the specified custom events. If you try to define custom element events on <code>HTMLElement</code>, for example, you’ll end up with the JavaScript properties working, but the HTML attributes not being linked to it in any way. So don’t bother. (If it were deemed a good idea, a mutation observer could be employed directly to make it work, but I’m not interested in that, at present at least.)
+
+<h2>Demo</h2>
+
+<my-example id=one>I’m a <code>&lt;my-example&gt;</code> element! (#one)</my-example>
+
+<my-example id=two onsample="this.say('look, onsample works! (' + event.see + ')')">
+	I’m also a <code>&lt;my-example&gt;</code> element (#two), and I have an <code>onsample</code> attribute also (it’s noisy; <button onclick="two.removeAttribute('onsample')">it should die</button>)
+</my-example>
+
+<div class=actions>
+<button class=fire onclick="for (let e of document.querySelectorAll('my-example')) {
+	e.dispatchEvent(new SampleEvent());
+}" title="If you’re puzzled about the presence of U+1F525 FIRE, it’s because event dispatch is also called firing an event, and everyone loves emoji these days.">🔥</button>
+<div>
+<button onclick="one.onsample = function(event) {
+    this.say('onsample, function assigned to property');
+}">Give #one an onsample function</button>
+<button onclick="one.setAttribute('onsample', 'this.say(&quot;onsample, string assigned to attribute&quot;)')">Give #one an onsample attribute</button>
+<button onclick="one.onsample = null">Remove #one's onsample function</button>
+<button onclick="one.removeAttribute('onsample')">Remove #one's onsample attribute</button>
+</div>
+<div>
+<button onclick="two.onsample = function(event) {
+    this.say('onsample, function assigned to property');
+}">Give #two an onsample function</button>
+<button onclick="two.setAttribute('onsample', 'this.say(&quot;onsample, string assigned to attribute&quot;)')">Give #two an onsample attribute</button>
+<button onclick="two.onsample = null">Remove #two's onsample function</button>
+<button onclick="two.removeAttribute('onsample')">Remove #two's onsample attribute</button>
+</div>
+</div>
+
+<div id=log></div>
+
+<script>document.registerElement||document.write('<script src=https://cdnjs.cloudflare.com/ajax/libs/webcomponentsjs/0.7.22/webcomponents-lite.min.js><\x2fscript>')</script>
+<script src=custom-element-events.min.js></script>
+<script>
+	class SampleEvent extends Event {
+		constructor() {
+			super('sample');
+		}
+
+		get see() {
+			return 'see?';
+		}
+	}
+
+	lastTimestamp = 0;
+
+	// MyExampleElement conforms to Custom Elements V0. You could adjust it for V1 and it’d work.
+	class MyExampleElement extends HTMLElement {
+		say(message) {
+			let line = document.createElement('div');
+			line.className = this.id;
+			line.textContent = `#${this.id}: ${message}`;
+			let now = +new Date();
+			line.classList.add('latest');
+			if (now - lastTimestamp > 5) {
+				for (let e of log.querySelectorAll('.latest')) {
+					e.classList.remove('latest');
+				}
+				line.style.marginBottom = '0.2em';
+			}
+			lastTimestamp = now;
+			log.insertBefore(line, log.firstChild);
+		}
+
+		createdCallback() {
+			this.say('upgraded, about to fire a sample event');
+			this.addEventListener('sample', event => {
+				this.say("addEventListener('sample', …) works (" + event.see + ")");
+			}, {once: true});
+			this.dispatchEvent(new SampleEvent());
+		}
+
+		attachedCallback() {
+			this.say('attached, about to fire a sample event');
+			this.dispatchEvent(new SampleEvent());
+		}
+
+		detachedCallback() {
+			this.say('detached, about to fire a sample event');
+			this.dispatchEvent(new SampleEvent());
+		}
+	}
+
+	defineEventAttributes(MyExampleElement, ['sample']);
+	MyExampleElement = document.registerElement('my-example', MyExampleElement);
+</script>
